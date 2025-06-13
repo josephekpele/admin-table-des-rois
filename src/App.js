@@ -14,8 +14,6 @@ const AdminDashboard = () => {
   // États pour les modales
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
-  const [editingCategory, setEditingCategory] = useState(null);
-  const [editingProduct, setEditingProduct] = useState(null);
 
   // États pour les formulaires
   const [categoryForm, setCategoryForm] = useState({ name: '' });
