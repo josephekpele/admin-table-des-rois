@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Package, ShoppingCart, Users, Eye, Check } from 'lucide-react';
 
-const API_BASE_URL = 'http://157.180.38.74:8000'; // Ajustez selon votre configuration
+const API_BASE_URL = 'https://api.tabledesrois.site'; // Ajustez selon votre configuration
 // const API_BASE_URL = "/api";
 
 const AdminDashboard = () => {
