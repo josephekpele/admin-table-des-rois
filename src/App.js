@@ -34,7 +34,7 @@ const AdminDashboard = () => {
 
   const loadCategories = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/categories`, {
+      const response = await fetch(`${API_BASE_URL}/categories?nocache=${Date.now()}`, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
         mode: 'cors'
@@ -48,7 +48,7 @@ const AdminDashboard = () => {
 
   const loadProducts = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/products`, {
+      const response = await fetch(`${API_BASE_URL}/products?nocache=${Date.now()}`, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
         mode: 'cors'
@@ -62,7 +62,7 @@ const AdminDashboard = () => {
 
   const loadOrders = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/orders`, {
+      const response = await fetch(`${API_BASE_URL}/orders?nocache=${Date.now()}`, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
         mode: 'cors'
