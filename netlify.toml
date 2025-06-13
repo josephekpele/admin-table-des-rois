@@ -7,3 +7,9 @@
 
 [context.develop]
   branch = "develop"
+
+[[redirects]]
+  from = "/api/*"
+  to = "http://157.180.38.74:8000/:splat"
+  status = 200
+  force = true
