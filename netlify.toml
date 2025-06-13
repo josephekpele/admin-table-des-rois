@@ -2,16 +2,8 @@
   command = "npm run build"
   publish = "build"
 
-[context.branch-deploy.environment]
+[context.develop.environment]
   NODE_ENV = "production"
 
-[[redirects]]
-  from = "/api/*"
-  to = "http://157.180.38.74:8000/:splat"
-  status = 200
-  force = true
-
-[[headers]]
-  for = "/api/*"
-  [headers.values]
-    Cache-Control = "no-store"
+[context.develop]
+  branch = "develop"
