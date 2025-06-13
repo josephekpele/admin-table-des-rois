@@ -33,7 +33,11 @@ const AdminDashboard = () => {
 
   const loadCategories = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/categories`);
+      const response = await fetch(`${API_BASE_URL}/categories`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        mode: 'cors'
+      });
       const data = await response.json();
       setCategories(data);
     } catch (err) {
@@ -43,7 +47,11 @@ const AdminDashboard = () => {
 
   const loadProducts = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/products`);
+      const response = await fetch(`${API_BASE_URL}/products`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        mode: 'cors'
+      });
       const data = await response.json();
       setProducts(data);
     } catch (err) {
@@ -53,7 +61,11 @@ const AdminDashboard = () => {
 
   const loadOrders = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/orders`);
+      const response = await fetch(`${API_BASE_URL}/orders`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        mode: 'cors'
+      });
       const data = await response.json();
       setOrders(data);
     } catch (err) {
@@ -67,6 +79,7 @@ const AdminDashboard = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/categories`, {
         method: 'POST',
+        mode: 'cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(categoryForm)
       });
@@ -100,6 +113,7 @@ const AdminDashboard = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/products`, {
         method: 'POST',
+        mode: "cors",
         body: formData
       });
       
