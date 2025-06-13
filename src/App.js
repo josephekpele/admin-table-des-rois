@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Package, ShoppingCart, Users, Eye, Check } from 'lucide-react';
 
 const API_BASE_URL = 'https://api.tabledesrois.site'; // Ajustez selon votre configuration
-// const API_BASE_URL = "/api";
+// const API_BASE_URL = "http://localhost:10000";
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -11,6 +11,17 @@ const AdminDashboard = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const [editingCategory, setEditingCategory] = useState(null); // catégorie en cours d'édition
+  const [editedCategoryName, setEditedCategoryName] = useState('');
+  const [editingProduct, setEditingProduct] = useState(null); // produit en cours de modification
+  const [editedProductForm, setEditedProductForm] = useState({
+    name: '',
+    description: '',
+    category_id: '',
+    amount: '',
+    image: null
+  });
 
   // États pour les modales
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -22,6 +33,7 @@ const AdminDashboard = () => {
     name: '',
     description: '',
     category_id: '',
+    amount: '',
     image: null
   });
 
@@ -107,6 +119,7 @@ const AdminDashboard = () => {
     formData.append('name', productForm.name);
     formData.append('description', productForm.description);
     formData.append('category_id', productForm.category_id);
+    formData.append('amount', productForm.amount);
     if (productForm.image) {
       formData.append('image', productForm.image);
     }
@@ -120,6 +133,7 @@ const AdminDashboard = () => {
       
       if (response.ok) {
         await loadProducts();
+        await loadCategories();
         setShowProductModal(false);
         setProductForm({ name: '', description: '', category_id: '', image: null });
       } else {
@@ -128,6 +142,67 @@ const AdminDashboard = () => {
       }
     } catch (err) {
       setError('Erreur de connexion');
+    }
+    setLoading(false);
+  };
+
+  const handleDeleteCategory = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/categories/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        await loadCategories();
+      } else {
+        setError('Erreur lors de la suppression de la catégorie');
+      }
+    } catch (err) {
+      setError('Erreur de connexion');
+    }
+  };
+
+  const handleDeleteProduct = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/products/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        await loadProducts();
+      } else {
+        setError('Erreur lors de la suppression du produit');
+      }
+    } catch (err) {
+      setError('Erreur de connexion');
+    }
+  };
+
+  const handleUpdateCategory = async (categoryId, updatedName) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
+        method: 'PUT',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: updatedName }),
+      });
+
+      if (response.ok) {
+        await loadCategories();
+        setError('');
+      } else {
+        const errorData = await response.json();
+
+        // Gérer les erreurs de validation de FastAPI (listes d'erreurs)
+        const message = Array.isArray(errorData.detail)
+          ? errorData.detail.map((e) => e.msg).join(', ')
+          : errorData.detail || 'Erreur lors de la mise à jour';
+
+        setError(message);
+      }
+    } catch (err) {
+      setError("Erreur de connexion");
     }
     setLoading(false);
   };
@@ -214,10 +289,18 @@ const AdminDashboard = () => {
                     {category.product_count}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900 mr-3">
+                    <button 
+                      className="text-blue-600 hover:text-blue-900 mr-3"
+                      onClick={() => {
+                        setEditingCategory(category);
+                        setEditedCategoryName(category.name);
+                      }}>
                       <Edit className="h-4 w-4" />
                     </button>
-                    <button className="text-red-600 hover:text-red-900">
+                    <button
+                      onClick={() => handleDeleteCategory(category.id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </td>
@@ -263,10 +346,24 @@ const AdminDashboard = () => {
                   {product.amount ? `${product.amount} FCFA` : 'Prix non défini'}
                 </span>
                 <div className="flex gap-2">
-                  <button className="text-blue-600 hover:text-blue-900">
+                  <button 
+                    className="text-blue-600 hover:text-blue-900"
+                    onClick={() => {
+                      setEditingProduct(product);
+                      setEditedProductForm({
+                        name: product.name,
+                        description: product.description,
+                        category_id: product.category.id,
+                        amount: product.amount,
+                        image: null
+                      });
+                    }}>
                     <Edit className="h-4 w-4" />
                   </button>
-                  <button className="text-red-600 hover:text-red-900">
+                  <button
+                    onClick={() => handleDeleteProduct(product.id)}
+                    className="text-red-600 hover:text-red-900"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -358,131 +455,6 @@ const AdminDashboard = () => {
     </div>
   );
 
-  // Modales
-  const CategoryModal = () => (
-    showCategoryModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-full max-w-md">
-          <h3 className="text-lg font-semibold mb-4">Nouvelle Catégorie</h3>
-          <div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nom de la catégorie
-              </label>
-              <input
-                type="text"
-                value={categoryForm.name}
-                onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setShowCategoryModal(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateCategory}
-                disabled={loading}
-                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
-              >
-                {loading ? 'Création...' : 'Créer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  );
-
-  const ProductModal = () => (
-    showProductModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-full max-w-md">
-          <h3 className="text-lg font-semibold mb-4">Nouveau Produit</h3>
-          <div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nom du produit
-              </label>
-              <input
-                type="text"
-                value={productForm.name}
-                onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description
-              </label>
-              <textarea
-                value={productForm.description}
-                onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows="3"
-                required
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Catégorie
-              </label>
-              <select
-                value={productForm.category_id}
-                onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option value="">Sélectionner une catégorie</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Image
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setProductForm({ ...productForm, image: e.target.files[0] })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setShowProductModal(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateProduct}
-                disabled={loading}
-                className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50"
-              >
-                {loading ? 'Création...' : 'Créer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  );
-
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -544,8 +516,286 @@ const AdminDashboard = () => {
       </main>
 
       {/* Modales */}
-      <CategoryModal />
-      <ProductModal />
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Nouvelle Catégorie</h3>
+            <div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nom de la catégorie
+                </label>
+                <input
+                  type="text"
+                  value={categoryForm.name}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCategoryModal(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateCategory}
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {loading ? 'Création...' : 'Créer'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProductModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Nouveau Produit</h3>
+            <div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nom du produit
+                </label>
+                <input
+                  type="text"
+                  value={productForm.name}
+                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={productForm.description}
+                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows="3"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Prix (FCFA)
+                </label>
+                <input
+                  type="number"
+                  value={productForm.amount}
+                  onChange={(e) => setProductForm({ ...productForm, amount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Catégorie
+                </label>
+                <select
+                  value={productForm.category_id}
+                  onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Sélectionner une catégorie</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Image
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setProductForm({ ...productForm, image: e.target.files[0] })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowProductModal(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateProduct}
+                  disabled={loading}
+                  className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50"
+                >
+                  {loading ? 'Création...' : 'Créer'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingCategory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Modifier la Catégorie</h3>
+            <div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nom</label>
+                <input
+                  type="text"
+                  value={editedCategoryName}
+                  onChange={(e) => setEditedCategoryName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingCategory(null)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={async () => {
+                    await handleUpdateCategory(editingCategory.id, editedCategoryName);
+                    setEditingCategory(null);
+                  }}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {loading ? 'Modification...' : 'Modifier'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Modifier le Produit</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Nom</label>
+                <input
+                  type="text"
+                  value={editedProductForm.name}
+                  onChange={(e) => setEditedProductForm({ ...editedProductForm, name: e.target.value })}
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Description</label>
+                <textarea
+                  value={editedProductForm.description}
+                  onChange={(e) => setEditedProductForm({ ...editedProductForm, description: e.target.value })}
+                  className="w-full px-3 py-2 border rounded"
+                  rows="3"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Catégorie</label>
+                <select
+                  value={editedProductForm.category_id}
+                  onChange={(e) => setEditedProductForm({ ...editedProductForm, category_id: e.target.value })}
+                  className="w-full px-3 py-2 border rounded"
+                >
+                  <option value="">Sélectionner une catégorie</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Prix</label>
+                <input
+                  type="number"
+                  value={editedProductForm.amount}
+                  onChange={(e) => setEditedProductForm({ ...editedProductForm, amount: e.target.value })}
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Image (optionnelle)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setEditedProductForm({ ...editedProductForm, image: e.target.files[0] })}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => setEditingProduct(null)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={async () => {
+                    const formData = new FormData();
+                    formData.append('name', editedProductForm.name || '');
+                    formData.append('description', editedProductForm.description || '');
+                    formData.append('category_id', String(editedProductForm.category_id || ''));
+                    formData.append('amount', String(editedProductForm.amount || ''));
+
+                    if (editedProductForm.image) {
+                      formData.append('image', editedProductForm.image);
+                    }
+
+                    setLoading(true);
+                    try {
+                      const response = await fetch(`${API_BASE_URL}/products/${editingProduct.id}`, {
+                        method: 'PUT',
+                        body: formData
+                      });
+
+                      if (response.ok) {
+                        await loadProducts();
+                        await loadCategories();
+                        setEditingProduct(null);
+                      } else {
+                        const data = await response.json();
+                        setError(data.detail || 'Erreur lors de la modification');
+                      }
+                    } catch (err) {
+                      setError('Erreur de connexion');
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {loading ? 'Modification...' : 'Modifier'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
