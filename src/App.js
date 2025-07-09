@@ -339,7 +339,7 @@ const AdminDashboard = () => {
                   className="h-48 w-full object-cover object-center"
                 />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">{product.name}</h3>
+              <h3 className="text-lg font-medium text-lime-500 mb-2">{product.name}</h3>
               <p className="text-sm text-gray-600 mb-3">{product.description}</p>
               <div className="flex justify-between items-center">
                 <span className="text-lg font-bold text-green-600">
