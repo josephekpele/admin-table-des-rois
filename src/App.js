@@ -3,7 +3,7 @@ import {
   Plus, Edit, Trash2, Package, ShoppingCart, Eye, Check, Sparkles,
   LayoutDashboard, Tag, ToggleLeft, ToggleRight, Layers, X, FileDown,
   AlertCircle, CheckCircle2, Clock, Search, Loader2, TrendingUp,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Ban, XCircle,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -67,9 +67,14 @@ const FormField = ({ label, children, hint }) => (
 
 const inputCls = 'w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-shadow';
 
-const StatusBadge = ({ delivered }) => delivered
-  ? <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold"><CheckCircle2 className="h-3 w-3" />Livrée</span>
-  : <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold"><Clock className="h-3 w-3" />En attente</span>;
+const StatusBadge = ({ delivered, cancelled }) => {
+  if (cancelled) {
+    return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold"><XCircle className="h-3 w-3" />Annulée</span>;
+  }
+  return delivered
+    ? <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold"><CheckCircle2 className="h-3 w-3" />Livrée</span>
+    : <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold"><Clock className="h-3 w-3" />En attente</span>;
+};
 
 const Pagination = ({ page, pages, total, perPage, onPageChange }) => {
   if (pages <= 1) return null;
@@ -143,6 +148,7 @@ const AdminDashboard = () => {
   const [stockProduct, setStockProduct] = useState(null);
   const [stockEntries, setStockEntries] = useState([]);
   const [stockQuantity, setStockQuantity] = useState('');
+  const [stockMovementType, setStockMovementType] = useState('in');
   const [stockLoading, setStockLoading] = useState(false);
   const [stockEntriesLoading, setStockEntriesLoading] = useState(false);
   const [exportStartDate, setExportStartDate] = useState('');
@@ -235,6 +241,7 @@ const AdminDashboard = () => {
   const openStockModal = async (product) => {
     setStockProduct(product);
     setStockQuantity('');
+    setStockMovementType('in');
     await loadStockEntries(product.id);
   };
 
@@ -242,11 +249,18 @@ const AdminDashboard = () => {
     if (!stockProduct) return;
     const quantityNumber = Number(stockQuantity);
     if (!quantityNumber || quantityNumber <= 0) { setError('La quantité doit être supérieure à 0'); return; }
+
+    const currentStock = (products.find(p => p.id === stockProduct.id)?.in_stock) ?? stockProduct.in_stock ?? 0;
+    if (stockMovementType === 'out' && quantityNumber > currentStock) {
+      setError(`Stock insuffisant: ${currentStock} disponible(s), ${quantityNumber} demandé(s)`);
+      return;
+    }
+
     setStockLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/stock-entries`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, mode: 'cors',
-        body: JSON.stringify({ product_id: stockProduct.id, quantity: quantityNumber })
+        body: JSON.stringify({ product_id: stockProduct.id, quantity: quantityNumber, movement_type: stockMovementType })
       });
       if (!response.ok) { const d = await response.json(); throw new Error(d.detail || 'Erreur'); }
       await loadStockEntries(stockProduct.id);
@@ -265,6 +279,19 @@ const AdminDashboard = () => {
       });
       if (!response.ok) throw new Error('Erreur lors de la mise à jour');
       await loadOrders(ordersPage);
+      setError('');
+    } catch (err) { setError('Erreur: ' + err.message); }
+  };
+
+  const cancelOrder = async (orderId) => {
+    if (!window.confirm('Annuler cette commande ? Si elle était déjà livrée, le stock correspondant sera restitué.')) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/orders/${orderId}/cancel`, {
+        method: 'PUT', headers: { 'Accept': 'application/json' }, mode: 'cors'
+      });
+      if (!response.ok) { const d = await response.json(); throw new Error(d.detail || 'Erreur lors de l\'annulation'); }
+      await loadOrders(ordersPage);
+      await loadProducts();
       setError('');
     } catch (err) { setError('Erreur: ' + err.message); }
   };
@@ -413,12 +440,12 @@ const AdminDashboard = () => {
           {orders.slice(0, 5).map(order => (
             <div key={order.id} className="flex items-center justify-between py-2.5 border-b border-slate-50 last:border-0">
               <div>
-                <p className="text-sm font-semibold text-slate-800">#{order.id} — {order.phone_number}</p>
+                <p className="text-sm font-semibold text-slate-800">{order.order_number || `#${order.id}`} — {order.phone_number}</p>
                 <p className="text-xs text-slate-400">{order.day} · {order.time_slot}</p>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-sm font-bold text-slate-900">{order.total_amount} <span className="text-xs font-normal text-slate-400">FCFA</span></span>
-                <StatusBadge delivered={order.delivred} />
+                <StatusBadge delivered={order.delivred} cancelled={order.cancelled} />
               </div>
             </div>
           ))}
@@ -661,6 +688,7 @@ const AdminDashboard = () => {
             <select value={exportDeliveryStatus} onChange={e => setExportDeliveryStatus(e.target.value)} className={inputCls + ' w-auto'}>
               <option value="delivered">Livrées</option>
               <option value="pending">Non livrées</option>
+              <option value="cancelled">Annulées</option>
               <option value="all">Toutes</option>
             </select>
           </div>
@@ -698,8 +726,8 @@ const AdminDashboard = () => {
             </thead>
             <tbody>
               {orders.map((order, i) => (
-                <tr key={order.id} className={`hover:bg-slate-50 transition-colors ${i % 2 === 0 ? '' : 'bg-slate-50/40'}`}>
-                  <td className="px-5 py-4 text-sm font-bold text-slate-900">#{order.id}</td>
+                <tr key={order.id} className={`hover:bg-slate-50 transition-colors ${order.cancelled ? 'opacity-60' : ''} ${i % 2 === 0 ? '' : 'bg-slate-50/40'}`}>
+                  <td className="px-5 py-4 text-sm font-bold text-slate-900">{order.order_number || `#${order.id}`}</td>
                   <td className="px-5 py-4 text-sm text-slate-700">{order.phone_number}</td>
                   <td className="px-5 py-4 text-sm text-slate-700">
                     <span className="font-semibold">{order.day}</span>
@@ -713,26 +741,31 @@ const AdminDashboard = () => {
                     </span>
                   </td>
                   <td className="px-5 py-4 text-sm font-bold text-slate-900">{order.total_amount} <span className="text-xs font-normal text-slate-400">FCFA</span></td>
-                  <td className="px-5 py-4"><StatusBadge delivered={order.delivred} /></td>
+                  <td className="px-5 py-4"><StatusBadge delivered={order.delivred} cancelled={order.cancelled} /></td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-1">
                       <IconBtn variant="blue" title="Voir les détails" onClick={() => setSelectedOrder(order)}>
                         <Eye className="h-4 w-4" />
                       </IconBtn>
-                      {!order.delivred && (
+                      {!order.cancelled && !order.delivred && (
                         <IconBtn
                           variant="green"
                           title="Marquer comme livrée"
                           onClick={() => {
                             const issues = getOrderStockIssues(order);
                             if (issues.length > 0) {
-                              setError(`Stock insuffisant pour #${order.id}: ${issues.map(i => `${i.name} (manque ${i.missing})`).join(', ')}`);
+                              setError(`Stock insuffisant pour ${order.order_number || `#${order.id}`}: ${issues.map(i => `${i.name} (manque ${i.missing})`).join(', ')}`);
                               return;
                             }
                             updateOrderStatus(order.id, true);
                           }}
                         >
                           <Check className="h-4 w-4" />
+                        </IconBtn>
+                      )}
+                      {!order.cancelled && (
+                        <IconBtn variant="red" title="Annuler la commande" onClick={() => cancelOrder(order.id)}>
+                          <Ban className="h-4 w-4" />
                         </IconBtn>
                       )}
                     </div>
@@ -1010,12 +1043,42 @@ const AdminDashboard = () => {
       {/* ── Stock entries ── */}
       {stockProduct && (
         <Modal
-          title="Entrées en stock"
+          title="Mouvements de stock"
           subtitle={stockProduct.name}
           onClose={() => setStockProduct(null)}
           maxWidth="max-w-lg"
         >
           <div className="space-y-4">
+            <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
+              <span className="text-sm font-medium text-slate-500">Stock actuel</span>
+              <span className="text-lg font-bold text-slate-900">
+                {(products.find(p => p.id === stockProduct.id)?.in_stock) ?? stockProduct.in_stock ?? 0}
+              </span>
+            </div>
+
+            <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+              <button
+                type="button"
+                onClick={() => setStockMovementType('in')}
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  stockMovementType === 'in' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <Plus className="h-4 w-4" />
+                Entrée
+              </button>
+              <button
+                type="button"
+                onClick={() => setStockMovementType('out')}
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  stockMovementType === 'out' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Retrait
+              </button>
+            </div>
+
             <div className="flex gap-2">
               <input
                 type="number"
@@ -1023,15 +1086,20 @@ const AdminDashboard = () => {
                 value={stockQuantity}
                 onChange={e => setStockQuantity(e.target.value)}
                 className={`${inputCls} flex-1`}
-                placeholder="Quantité à ajouter"
+                placeholder={stockMovementType === 'in' ? 'Quantité à ajouter' : 'Quantité à retirer'}
               />
               <button
                 onClick={handleCreateStockEntry}
                 disabled={stockLoading}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex-shrink-0"
+                className={`inline-flex items-center gap-2 px-4 py-2.5 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex-shrink-0 ${
+                  stockMovementType === 'in' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'
+                }`}
               >
-                {stockLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Ajouter
+                {stockLoading
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : stockMovementType === 'in' ? <Plus className="h-4 w-4" /> : <Trash2 className="h-3.5 w-3.5" />
+                }
+                {stockMovementType === 'in' ? 'Ajouter' : 'Retirer'}
               </button>
             </div>
 
@@ -1039,7 +1107,7 @@ const AdminDashboard = () => {
               <table className="min-w-full">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wide">Quantité</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wide">Mouvement</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wide">Date</th>
                   </tr>
                 </thead>
@@ -1047,14 +1115,19 @@ const AdminDashboard = () => {
                   {stockEntriesLoading && (
                     <tr><td colSpan="2" className="px-4 py-6 text-center text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin mx-auto" /></td></tr>
                   )}
-                  {!stockEntriesLoading && stockEntries.map(entry => (
-                    <tr key={entry.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-bold text-emerald-600">+{entry.quantity}</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">{entry.created_at ? new Date(entry.created_at).toLocaleString('fr-FR') : 'N/A'}</td>
-                    </tr>
-                  ))}
+                  {!stockEntriesLoading && stockEntries.map(entry => {
+                    const isOut = entry.movement_type === 'out';
+                    return (
+                      <tr key={entry.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                        <td className={`px-4 py-3 text-sm font-bold ${isOut ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {isOut ? '−' : '+'}{entry.quantity}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-500">{entry.created_at ? new Date(entry.created_at).toLocaleString('fr-FR') : 'N/A'}</td>
+                      </tr>
+                    );
+                  })}
                   {!stockEntriesLoading && stockEntries.length === 0 && (
-                    <tr><td colSpan="2" className="px-4 py-8 text-center text-sm text-slate-400">Aucune entrée enregistrée</td></tr>
+                    <tr><td colSpan="2" className="px-4 py-8 text-center text-sm text-slate-400">Aucun mouvement enregistré</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1067,7 +1140,7 @@ const AdminDashboard = () => {
       {selectedOrder && (
         <Modal
           title="Détails de la commande"
-          subtitle={`#${selectedOrder.id} · ${selectedOrder.day} · ${selectedOrder.time_slot}`}
+          subtitle={`${selectedOrder.order_number || `#${selectedOrder.id}`} · ${selectedOrder.day} · ${selectedOrder.time_slot}`}
           onClose={() => setSelectedOrder(null)}
           maxWidth="max-w-4xl"
         >
@@ -1127,14 +1200,23 @@ const AdminDashboard = () => {
 
               <div className="border border-slate-100 rounded-xl p-4 space-y-2">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Statut</p>
-                <StatusBadge delivered={selectedOrder.delivred} />
-                {!selectedOrder.delivred && (
+                <StatusBadge delivered={selectedOrder.delivred} cancelled={selectedOrder.cancelled} />
+                {!selectedOrder.cancelled && !selectedOrder.delivred && (
                   <button
                     onClick={async () => { await updateOrderStatus(selectedOrder.id, true); setSelectedOrder(null); }}
                     className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors"
                   >
                     <Check className="h-4 w-4" />
                     Marquer comme livrée
+                  </button>
+                )}
+                {!selectedOrder.cancelled && (
+                  <button
+                    onClick={async () => { await cancelOrder(selectedOrder.id); setSelectedOrder(null); }}
+                    className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors"
+                  >
+                    <Ban className="h-4 w-4" />
+                    Annuler la commande
                   </button>
                 )}
               </div>
