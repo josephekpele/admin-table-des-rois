@@ -7,8 +7,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const API_BASE_URL = 'https://tabledesrois.jawess.com';
-// const API_BASE_URL = "http://localhost:10000";
+// const API_BASE_URL = 'https://tabledesrois.jawess.com';
+const API_BASE_URL = "http://localhost:10000";
 
 /* ─── small reusable pieces ─────────────────────────────────────────────── */
 
@@ -1150,7 +1150,7 @@ const AdminDashboard = () => {
                 {[
                   { label: 'Téléphone',  value: selectedOrder.phone_number },
                   { label: 'Méthode',    value: selectedOrder.delivery_method === 'self' ? 'Retrait client' : 'Livraison' },
-                  { label: 'Adresse',    value: selectedOrder.delivery_address || '—' },
+                  { label: 'Adresse',    value: selectedOrder.delivery_description || '—' },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-slate-50 rounded-xl p-3.5">
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">{label}</p>
